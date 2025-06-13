@@ -1,4 +1,4 @@
-package bridge
+package types
 
 // ElementType represents the type of a schema element.
 type ElementType string
@@ -8,8 +8,8 @@ const (
 	Number = ElementType("number")
 	// String represents a string type.
 	String = ElementType("string")
-	// Boolean represents a boolean type.
-	Boolean = ElementType("boolean")
+	// Bool represents a boolean type.
+	Bool = ElementType("boolean")
 	// Array represents an array type.
 	Array = ElementType("array")
 	// Object represents an object type.

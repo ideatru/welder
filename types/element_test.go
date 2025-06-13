@@ -1,9 +1,10 @@
-package bridge
+package types_test
 
 import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ideatru/crosschain/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -11,7 +12,7 @@ func TestUnmarshalToElements(t *testing.T) {
 	type Testcase struct {
 		Name     string
 		Input    string
-		Expected []Element
+		Expected types.Elements
 	}
 
 	testcases := []Testcase{
@@ -22,9 +23,9 @@ func TestUnmarshalToElements(t *testing.T) {
 					"type": "string"
 				}
 			]`,
-			Expected: []Element{
+			Expected: types.Elements{
 				{
-					Ty: String,
+					Type: types.String,
 				},
 			},
 		},
@@ -60,32 +61,32 @@ func TestUnmarshalToElements(t *testing.T) {
 					]
 				}
 			]`,
-			Expected: []Element{
+			Expected: types.Elements{
 				{
-					Ty: Number,
+					Type: types.Number,
 				},
 				{
-					Ty: Array,
-					Children: []Element{
+					Type: types.Array,
+					Children: types.Elements{
 						{
-							Ty: String,
+							Type: types.String,
 						},
 					},
 				},
 				{
-					Ty: Object,
-					Children: []Element{
+					Type: types.Object,
+					Children: types.Elements{
 						{
 							Name: "field-string",
-							Ty:   String,
+							Type: types.String,
 						},
 						{
 							Name: "field-number",
-							Ty:   Number,
+							Type: types.Number,
 						},
 						{
 							Name: "field-boolean",
-							Ty:   Boolean,
+							Type: types.Bool,
 						},
 					},
 				},
@@ -95,11 +96,10 @@ func TestUnmarshalToElements(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.Name, func(t *testing.T) {
-			var elements []Element
+			var elements types.Elements
+
 			err := json.Unmarshal([]byte(tc.Input), &elements)
-			if err != nil {
-				t.Fatalf("failed to unmarshal input: %v", err)
-			}
+			assert.NoError(t, err)
 
 			assert.Equal(t, tc.Expected, elements)
 		})

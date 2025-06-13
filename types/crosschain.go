@@ -1,4 +1,4 @@
-package bridge
+package types
 
 type Deserializer interface {
 	Deserialize(data []byte) (any, error)
