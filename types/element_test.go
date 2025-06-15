@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ideatru/crosschain/types"
+	"github.com/ideatru/welder/types"
 	"github.com/stretchr/testify/assert"
 )
 

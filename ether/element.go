@@ -6,7 +6,7 @@ import (
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ideatru/crosschain/types"
+	"github.com/ideatru/welder/types"
 )
 
 // AbiElements is a list of abi.Argument

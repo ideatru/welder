@@ -2,7 +2,7 @@ package ether
 
 import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ideatru/crosschain/types"
+	"github.com/ideatru/welder/types"
 )
 
 var emptyTy = abi.Type{}

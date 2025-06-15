@@ -1,4 +1,4 @@
-module github.com/ideatru/crosschain
+module github.com/ideatru/welder
 
 go 1.24.0
 

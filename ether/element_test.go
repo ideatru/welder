@@ -6,7 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ideatru/crosschain/types"
+	"github.com/ideatru/welder/types"
 	"github.com/stretchr/testify/assert"
 )
 
