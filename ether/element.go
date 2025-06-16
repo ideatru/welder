@@ -1,13 +1,17 @@
 package ether
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ideatru/welder/types"
 )
+
+var _ interface {
+	types.Deserializer[AbiElements]
+	types.Serializer[AbiElements]
+} = &EtherParser[AbiElements]{}
 
 // AbiElements is a list of abi.Argument
 type AbiElements []abi.Argument
@@ -18,27 +22,27 @@ func (e AbiElements) Encode(values ...any) ([]byte, error) {
 	return args.Pack(values...)
 }
 
-// AbiConverter is a converter that converts types.Elements to AbiElements
-type AbiConverter struct{}
+// EtherParser is a converter that converts types.Elements to AbiElements
+type EtherParser[T AbiElements] struct{}
 
-// NewConverter creates a new AbiConverter
-func NewConverter() *AbiConverter {
-	return &AbiConverter{}
+// NewEtherParser creates a new AbiConverter
+func NewEtherParser[T AbiElements]() *EtherParser[T] {
+	return &EtherParser[T]{}
 }
 
 // Encode encodes the elements into a byte slice
-func (e *AbiConverter) Encode(elements types.Elements) ([]byte, error) {
+func (e *EtherParser[T]) Serialize(elements types.Elements) (T, error) {
 	args, err := e.encode(elements)
 	if err != nil {
 		return nil, err
 	}
 
-	return json.Marshal(args)
+	return args, nil
 }
 
 // encode encodes the elements into AbiElements
-func (e *AbiConverter) encode(elements types.Elements) (AbiElements, error) {
-	args := make(AbiElements, len(elements))
+func (e *EtherParser[T]) encode(elements types.Elements) (T, error) {
+	args := make(T, len(elements))
 
 	for i, el := range elements {
 		args[i].Name = el.Name
@@ -70,7 +74,7 @@ func (e *AbiConverter) encode(elements types.Elements) (AbiElements, error) {
 }
 
 // encodeArray encodes the array into an abi.Type
-func (e *AbiConverter) encodeArray(el types.Element) (abi.Type, error) {
+func (e *EtherParser[T]) encodeArray(el types.Element) (abi.Type, error) {
 	if len(el.Children) != 1 {
 		return emptyTy, fmt.Errorf("array must have one child")
 	}
@@ -106,7 +110,7 @@ func (e *AbiConverter) encodeArray(el types.Element) (abi.Type, error) {
 }
 
 // encodeObject encodes the object into an abi.Type
-func (e *AbiConverter) encodeObject(el types.Element) (abi.Type, error) {
+func (e *EtherParser[T]) encodeObject(el types.Element) (abi.Type, error) {
 	if len(el.Children) == 0 {
 		return emptyTy, fmt.Errorf("object must have at least one child")
 	}
@@ -171,4 +175,8 @@ func (e *AbiConverter) encodeObject(el types.Element) (abi.Type, error) {
 
 	ty.TupleType = reflect.StructOf(fields)
 	return ty, nil
+}
+
+func (e *EtherParser[T]) Deserialize(data T) (types.Elements, error) {
+	return nil, nil
 }

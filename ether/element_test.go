@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAbiConverter_encode(t *testing.T) {
+func TestAbiParser_Serialize(t *testing.T) {
 	var (
 		abiStringTy = crossTypes[types.String]
 		abiNumberTy = crossTypes[types.Number]
@@ -93,10 +93,10 @@ func TestAbiConverter_encode(t *testing.T) {
 			Expected: AbiElements{{Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"name", "pair"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"base", "quote"}, TupleElems: []*abi.Type{{T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}, {T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Base", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"base" json:"base"`)}, {Name: "Quote", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"quote" json:"quote"`)}})}}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Name", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"name" json:"name"`)}, {Name: "Pair", Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"base", "quote"}, TupleElems: []*abi.Type{{T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}, {T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Base", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"base" json:"base"`)}, {Name: "Quote", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"quote" json:"quote"`)}})}}.GetType(), Tag: reflect.StructTag(`abi:"pair" json:"pair"`)}})}}}}}},
 	}
 
-	converter := NewConverter()
+	parser := NewEtherParser()
 	for _, tc := range testcases {
 		t.Run(tc.Name, func(t *testing.T) {
-			result, err := converter.encode(tc.Input)
+			result, err := parser.Serialize(tc.Input)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.Expected, result)
 		})
@@ -312,10 +312,10 @@ func TestAbiElements_Encode(t *testing.T) {
 		},
 	}
 
-	converter := NewConverter()
+	parser := NewEtherParser()
 	for _, tc := range testcases {
 		t.Run(tc.Name, func(t *testing.T) {
-			args, err := converter.encode(tc.Input)
+			args, err := parser.Serialize(tc.Input)
 			assert.NoError(t, err)
 
 			actual, err := args.Encode(tc.Args...)
