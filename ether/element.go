@@ -8,6 +8,7 @@ import (
 	"github.com/ideatru/welder/types"
 )
 
+// EtherParser implements types.Deserializer and types.Serializer
 var _ interface {
 	types.Deserializer[AbiElements]
 	types.Serializer[AbiElements]
@@ -32,12 +33,7 @@ func NewEtherParser[T AbiElements]() *EtherParser[T] {
 
 // Encode encodes the elements into a byte slice
 func (e *EtherParser[T]) Serialize(elements types.Elements) (T, error) {
-	args, err := e.encode(elements)
-	if err != nil {
-		return nil, err
-	}
-
-	return args, nil
+	return e.encode(elements)
 }
 
 // encode encodes the elements into AbiElements
@@ -66,7 +62,7 @@ func (e *EtherParser[T]) encode(elements types.Elements) (T, error) {
 			}
 			args[i].Type = ty
 		default:
-			return nil, fmt.Errorf("abi converter does not suuprot %q", el.Type)
+			return nil, fmt.Errorf("parser does not suuprot %q", el.Type)
 		}
 	}
 
@@ -178,5 +174,91 @@ func (e *EtherParser[T]) encodeObject(el types.Element) (abi.Type, error) {
 }
 
 func (e *EtherParser[T]) Deserialize(data T) (types.Elements, error) {
-	return nil, nil
+	return e.decode(data)
+}
+
+func (e *EtherParser[T]) decode(data T) (types.Elements, error) {
+	elements := make(types.Elements, len(data))
+
+	for i, arg := range data {
+		elements[i].Name = arg.Name
+		switch arg.Type.T {
+		case abi.StringTy:
+			elements[i].Type = types.String
+		case abi.IntTy:
+			elements[i].Type = types.Number
+		case abi.BoolTy:
+			elements[i].Type = types.Bool
+		case abi.SliceTy:
+			el, err := e.decodeArray(&arg.Type)
+			if err != nil {
+				return nil, err
+			}
+			elements[i].Type = el.Type
+			elements[i].Children = el.Children
+		default:
+			return nil, fmt.Errorf("elements does not support type %q", arg.Type.T)
+		}
+	}
+
+	return elements, nil
+}
+
+func (e *EtherParser[T]) decodeArray(arg *abi.Type) (types.Element, error) {
+	if arg.Elem == nil {
+		return types.Element{}, fmt.Errorf("abi argument must have `Elem`")
+	}
+
+	el := types.Element{Type: types.Array, Children: make(types.Elements, 1)}
+	switch arg.Elem.T {
+	case abi.StringTy:
+		el.Children[0] = types.Element{Type: types.String}
+	case abi.IntTy:
+		el.Children[0] = types.Element{Type: types.String}
+	case abi.BoolTy:
+		el.Children[0] = types.Element{Type: types.String}
+	case abi.SliceTy:
+		childEl, err := e.decodeArray(arg.Elem)
+		if err != nil {
+			return types.Element{}, err
+		}
+		el.Type = types.Array
+		el.Children[0] = childEl
+	default:
+		return types.Element{}, fmt.Errorf("elements does not support type %q", arg.T)
+	}
+
+	return el, nil
+}
+
+func (e *EtherParser[T]) decodeObject(arg *abi.Type) (types.Element, error) {
+	if arg.Elem == nil {
+		return types.Element{}, fmt.Errorf("abi argument must have `Elem`")
+	}
+
+	if len(arg.TupleElems) != len(arg.TupleRawNames) {
+		return types.Element{}, fmt.Errorf("abi argument must have `TupleElems` and `TupleRawNames`")
+	}
+
+	el := types.Element{Type: types.Object}
+	for i, tupleEl := range arg.TupleElems {
+		childEl := types.Element{
+			Name: arg.TupleRawNames[i],
+		}
+
+		switch tupleEl.T {
+		case abi.StringTy:
+			childEl.Type = types.String
+		case abi.IntTy:
+			childEl.Type = types.Number
+		case abi.BoolTy:
+			childEl.Type = types.Bool
+		default:
+			return types.Element{}, fmt.Errorf("elements does not support type %q", tupleEl.T)
+		}
+
+		el.Children = append(el.Children, childEl)
+	}
+
+	return el, nil
 }

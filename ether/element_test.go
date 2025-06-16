@@ -324,3 +324,53 @@ func TestAbiElements_Encode(t *testing.T) {
 		})
 	}
 }
+
+func TestAbiParser_Deserialize(t *testing.T) {
+	type Testcase struct {
+		Name     string
+		Input    AbiElements
+		Expected types.Elements
+	}
+
+	testcases := []Testcase{
+		{
+			Name:     "number",
+			Input:    AbiElements{{Type: crossTypes[types.Number]}},
+			Expected: types.Elements{{Type: types.Number}},
+		},
+		{
+			Name:     "string",
+			Input:    AbiElements{{Type: crossTypes[types.String]}},
+			Expected: types.Elements{{Type: types.String}},
+		},
+		{
+			Name:     "bool",
+			Input:    AbiElements{{Type: crossTypes[types.Bool]}},
+			Expected: types.Elements{{Type: types.Bool}},
+		},
+		{
+			Name:     "number,string,bool",
+			Input:    AbiElements{{Type: crossTypes[types.Number]}, {Type: crossTypes[types.String]}, {Type: crossTypes[types.Bool]}},
+			Expected: types.Elements{{Type: types.Number}, {Type: types.String}, {Type: types.Bool}},
+		},
+		{
+			Name:     "string[]",
+			Input:    AbiElements{{Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.StringTy}}}},
+			Expected: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.String}}}},
+		},
+		{
+			Name:     "string[][]",
+			Input:    AbiElements{{Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.StringTy}}}}},
+			Expected: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.String}}}}}},
+		},
+	}
+
+	parser := NewEtherParser()
+	for _, tc := range testcases {
+		t.Run(tc.Name, func(t *testing.T) {
+			actual, err := parser.Deserialize(tc.Input)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.Expected, actual)
+		})
+	}
+}

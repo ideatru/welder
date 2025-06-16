@@ -12,12 +12,10 @@ type Element struct {
 	Children Elements    `json:"children"`
 }
 
-// ElementEncoder is an interface that can encode an Element to a byte slice.
-type ElementEncoder interface {
-	Encode(data Elements) ([]byte, error)
+type Deserializer[T any] interface {
+	Deserialize(data T) (Elements, error)
 }
 
-// ElementDecoder is an interface that can decode a byte slice to an Element.
-type ElementDecoder interface {
-	Decode(data []byte) (Elements, error)
+type Serializer[T any] interface {
+	Serialize(data Elements) (T, error)
 }
