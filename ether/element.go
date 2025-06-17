@@ -196,6 +196,13 @@ func (e *EtherParser[T]) decode(data T) (types.Elements, error) {
 			}
 			elements[i].Type = el.Type
 			elements[i].Children = el.Children
+		case abi.TupleTy:
+			el, err := e.decodeObject(&arg.Type)
+			if err != nil {
+				return nil, err
+			}
+			elements[i].Type = el.Type
+			elements[i].Children = el.Children
 		default:
 			return nil, fmt.Errorf("elements does not support type %q", arg.Type.T)
 		}
@@ -214,28 +221,29 @@ func (e *EtherParser[T]) decodeArray(arg *abi.Type) (types.Element, error) {
 	case abi.StringTy:
 		el.Children[0] = types.Element{Type: types.String}
 	case abi.IntTy:
-		el.Children[0] = types.Element{Type: types.String}
+		el.Children[0] = types.Element{Type: types.Number} // Fixed: was types.String
 	case abi.BoolTy:
-		el.Children[0] = types.Element{Type: types.String}
+		el.Children[0] = types.Element{Type: types.Bool} // Fixed: was types.String
 	case abi.SliceTy:
 		childEl, err := e.decodeArray(arg.Elem)
 		if err != nil {
 			return types.Element{}, err
 		}
-		el.Type = types.Array
+		el.Children[0] = childEl
+	case abi.TupleTy:
+		childEl, err := e.decodeObject(arg.Elem)
+		if err != nil {
+			return types.Element{}, err
+		}
 		el.Children[0] = childEl
 	default:
-		return types.Element{}, fmt.Errorf("elements does not support type %q", arg.T)
+		return types.Element{}, fmt.Errorf("elements does not support type %q", arg.Elem.T) // Fixed: was arg.T
 	}
 
 	return el, nil
 }
 
 func (e *EtherParser[T]) decodeObject(arg *abi.Type) (types.Element, error) {
-	if arg.Elem == nil {
-		return types.Element{}, fmt.Errorf("abi argument must have `Elem`")
-	}
-
 	if len(arg.TupleElems) != len(arg.TupleRawNames) {
 		return types.Element{}, fmt.Errorf("abi argument must have `TupleElems` and `TupleRawNames`")
 	}
@@ -253,6 +261,20 @@ func (e *EtherParser[T]) decodeObject(arg *abi.Type) (types.Element, error) {
 			childEl.Type = types.Number
 		case abi.BoolTy:
 			childEl.Type = types.Bool
+		case abi.SliceTy:
+			tmpEl, err := e.decodeArray(tupleEl)
+			if err != nil {
+				return types.Element{}, err
+			}
+			childEl.Type = tmpEl.Type
+			childEl.Children = tmpEl.Children // Fixed: maintain consistency with other decode methods
+		case abi.TupleTy:
+			tmpEl, err := e.decodeObject(tupleEl)
+			if err != nil {
+				return types.Element{}, err
+			}
+			childEl.Type = tmpEl.Type
+			childEl.Children = tmpEl.Children
 		default:
 			return types.Element{}, fmt.Errorf("elements does not support type %q", tupleEl.T)
 		}
