@@ -179,11 +179,9 @@ func TestAbiElements_Encode(t *testing.T) {
 					} `abi:"quote" json:"quote"`
 				} `abi:"pair" json:"pair"`
 			}{
-				// First inner slice
 				{
 					{
 						Name: "CryptoExchange1",
-						// The value for the 'Pair' field must be a slice of the corresponding anonymous struct type.
 						Pair: []struct {
 							Base struct {
 								Instrument string  `abi:"instrument" json:"instrument"`
@@ -259,7 +257,6 @@ func TestAbiElements_Encode(t *testing.T) {
 						},
 					},
 				},
-				// Second inner slice
 				{
 					{
 						Name: "ForexBrokerA",
@@ -279,7 +276,7 @@ func TestAbiElements_Encode(t *testing.T) {
 									Prices     []int64 `abi:"prices" json:"prices"`
 								}{
 									Instrument: "EUR",
-									Prices:     []int64{10710, 10715, 10712}, // Prices represented as pips or scaled integers
+									Prices:     []int64{10710, 10715, 10712},
 								},
 								Quote: struct {
 									Instrument string  `abi:"instrument" json:"instrument"`

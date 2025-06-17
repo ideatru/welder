@@ -8,13 +8,10 @@ import (
 	"github.com/ideatru/welder/types"
 )
 
-// EtherParser implements types.Deserializer and types.Serializer
-var _ interface {
-	types.Deserializer[AbiElements]
-	types.Serializer[AbiElements]
-} = &EtherParser[AbiElements]{}
+// Ensure EtherParser implements the Parser interface for AbiElements.
+var _ types.Parser[AbiElements] = &EtherParser[AbiElements]{}
 
-// AbiElements is a list of abi.Argument
+// AbiElements is a list of abi.Argument, typically used for encoding/decoding Ethereum ABI data.
 type AbiElements []abi.Argument
 
 // Encode encodes the values into a byte slice
@@ -23,20 +20,21 @@ func (e AbiElements) Encode(values ...any) ([]byte, error) {
 	return args.Pack(values...)
 }
 
-// EtherParser is a converter that converts types.Elements to AbiElements
+// EtherParser is a generic converter that facilitates translation between `types.Elements`
+// and a target ABI type `T` (which must be `AbiElements`).
 type EtherParser[T AbiElements] struct{}
 
-// NewEtherParser creates a new AbiConverter
+// NewEtherParser creates and returns a new instance of EtherParser.
 func NewEtherParser[T AbiElements]() *EtherParser[T] {
 	return &EtherParser[T]{}
 }
 
-// Encode encodes the elements into a byte slice
+// Serialize converts a structured `types.Elements` representation into the target ABI type `T`.
 func (e *EtherParser[T]) Serialize(elements types.Elements) (T, error) {
 	return e.encode(elements)
 }
 
-// encode encodes the elements into AbiElements
+// encode internally processes and converts `types.Elements` into the `AbiElements` format.
 func (e *EtherParser[T]) encode(elements types.Elements) (T, error) {
 	args := make(T, len(elements))
 
@@ -69,7 +67,7 @@ func (e *EtherParser[T]) encode(elements types.Elements) (T, error) {
 	return args, nil
 }
 
-// encodeArray encodes the array into an abi.Type
+// encodeArray converts a `types.Element` representing an array into an `abi.Type` for array.
 func (e *EtherParser[T]) encodeArray(el types.Element) (abi.Type, error) {
 	if len(el.Children) != 1 {
 		return emptyTy, fmt.Errorf("array must have one child")
@@ -105,7 +103,7 @@ func (e *EtherParser[T]) encodeArray(el types.Element) (abi.Type, error) {
 	return ty, nil
 }
 
-// encodeObject encodes the object into an abi.Type
+// encodeObject converts a `types.Element` representing an object into an `abi.Type` for a tuple.
 func (e *EtherParser[T]) encodeObject(el types.Element) (abi.Type, error) {
 	if len(el.Children) == 0 {
 		return emptyTy, fmt.Errorf("object must have at least one child")
@@ -173,10 +171,12 @@ func (e *EtherParser[T]) encodeObject(el types.Element) (abi.Type, error) {
 	return ty, nil
 }
 
+// Deserialize converts data of type `T` (AbiElements) into a structured `types.Elements` representation.
 func (e *EtherParser[T]) Deserialize(data T) (types.Elements, error) {
 	return e.decode(data)
 }
 
+// decode internally processes and converts `AbiElements` into the `types.Elements` format.
 func (e *EtherParser[T]) decode(data T) (types.Elements, error) {
 	elements := make(types.Elements, len(data))
 
@@ -211,6 +211,7 @@ func (e *EtherParser[T]) decode(data T) (types.Elements, error) {
 	return elements, nil
 }
 
+// decodeArray recursively decodes an `abi.Type` representing an array into a `types.Element`.
 func (e *EtherParser[T]) decodeArray(arg *abi.Type) (types.Element, error) {
 	if arg.Elem == nil {
 		return types.Element{}, fmt.Errorf("abi argument must have `Elem`")
@@ -243,6 +244,7 @@ func (e *EtherParser[T]) decodeArray(arg *abi.Type) (types.Element, error) {
 	return el, nil
 }
 
+// decodeObject recursively decodes an `abi.Type` representing a tuple (object) into a `types.Element`.
 func (e *EtherParser[T]) decodeObject(arg *abi.Type) (types.Element, error) {
 	if len(arg.TupleElems) != len(arg.TupleRawNames) {
 		return types.Element{}, fmt.Errorf("abi argument must have `TupleElems` and `TupleRawNames`")

@@ -12,6 +12,11 @@ type Element struct {
 	Children Elements    `json:"children"`
 }
 
+type Parser[T any] interface {
+	Deserializer[T]
+	Serializer[T]
+}
+
 type Deserializer[T any] interface {
 	Deserialize(data T) (Elements, error)
 }
