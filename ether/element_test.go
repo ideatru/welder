@@ -1,181 +1,88 @@
 package ether
 
 import (
+	"fmt"
+	"math/big"
 	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ideatru/welder/types"
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	abiStringTy = crossTypes[types.String]
-	abiNumberTy = crossTypes[types.Number]
-	abiBoolTy   = crossTypes[types.Bool]
-)
+func TestEtherParser_Serialize(t *testing.T) {
 
-func TestAbiParser_Serialize(t *testing.T) {
 	type Testcase struct {
 		Name     string
 		Input    types.Elements
-		Expected AbiElements
-	}
-
-	testcases := []Testcase{
-		{
-			Name:     "number",
-			Input:    types.Elements{{Type: types.Number}},
-			Expected: AbiElements{{Type: abiNumberTy}},
-		},
-		{
-			Name:     "string",
-			Input:    types.Elements{{Type: types.String}},
-			Expected: AbiElements{{Type: abiStringTy}},
-		},
-		{
-			Name:     "bool",
-			Input:    types.Elements{{Type: types.Bool}},
-			Expected: AbiElements{{Type: abiBoolTy}},
-		},
-		{
-			Name: "number,string,bool",
-			Input: types.Elements{
-				{Type: types.Number},
-				{Type: types.String},
-				{Type: types.Bool},
-			},
-			Expected: AbiElements{
-				{Type: abiNumberTy},
-				{Type: abiStringTy},
-				{Type: abiBoolTy},
-			},
-		},
-		{
-			Name:     "string[]",
-			Input:    types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.String}}}},
-			Expected: AbiElements{{Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.StringTy}}}},
-		},
-		{
-			Name:     "string[][]",
-			Input:    types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.String}}}}}},
-			Expected: AbiElements{{Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.StringTy}}}}},
-		},
-		{
-			Name:     "(string name, number amount, bool valid)",
-			Input:    types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "amount", Type: types.Number}, {Name: "valid", Type: types.Bool}}}},
-			Expected: AbiElements{{Type: abi.Type{T: abi.TupleTy, TupleRawNames: []string{"name", "amount", "valid"}, TupleElems: []*abi.Type{&abiStringTy, &abiNumberTy, &abiBoolTy}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Name", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"name" json:"name"`)}, {Name: "Amount", Type: abiNumberTy.GetType(), Tag: reflect.StructTag(`abi:"amount" json:"amount"`)}, {Name: "Valid", Type: abiBoolTy.GetType(), Tag: reflect.StructTag(`abi:"valid" json:"valid"`)}})}}},
-		},
-		{
-			Name:     "(string[] names)",
-			Input:    types.Elements{{Type: types.Object, Children: types.Elements{{Name: "names", Type: types.Array, Children: types.Elements{{Type: types.String}}}}}},
-			Expected: AbiElements{{Type: abi.Type{T: abi.TupleTy, TupleRawNames: []string{"names"}, TupleElems: []*abi.Type{{T: abi.SliceTy, Elem: &abi.Type{T: abi.StringTy}}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Names", Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.StringTy}}.GetType(), Tag: reflect.StructTag(`abi:"names" json:"names"`)}})}}},
-		},
-		{
-			Name:     "(string[][] names)",
-			Input:    types.Elements{{Type: types.Object, Children: types.Elements{{Name: "names", Type: types.Array, Children: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.String}}}}}}}},
-			Expected: AbiElements{{Type: abi.Type{T: abi.TupleTy, TupleRawNames: []string{"names"}, TupleElems: []*abi.Type{{T: abi.SliceTy, Elem: &abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.StringTy}}}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Names", Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.StringTy}}}.GetType(), Tag: reflect.StructTag(`abi:"names" json:"names"`)}})}}},
-		},
-		{
-			Name:     "(string name, number age)[]",
-			Input:    types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "age", Type: types.Number}}}}}},
-			Expected: AbiElements{{Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"name", "age"}, TupleElems: []*abi.Type{&abiStringTy, &abiNumberTy}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Name", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"name" json:"name"`)}, {Name: "Age", Type: abiNumberTy.GetType(), Tag: reflect.StructTag(`abi:"age" json:"age"`)}})}}}},
-		},
-		{
-			Name:     "(string name, (number amount, bool valid) detail)",
-			Input:    types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "detail", Type: types.Object, Children: types.Elements{{Name: "amount", Type: types.Number}, {Name: "valid", Type: types.Bool}}}}}},
-			Expected: AbiElements{{Type: abi.Type{T: abi.TupleTy, TupleRawNames: []string{"name", "detail"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.TupleTy, TupleRawNames: []string{"amount", "valid"}, TupleElems: []*abi.Type{&abiNumberTy, &abiBoolTy}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Amount", Type: abiNumberTy.GetType(), Tag: reflect.StructTag(`abi:"amount" json:"amount"`)}, {Name: "Valid", Type: abiBoolTy.GetType(), Tag: reflect.StructTag(`abi:"valid" json:"valid"`)}})}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Name", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"name" json:"name"`)}, {Name: "Detail", Type: abi.Type{T: abi.TupleTy, TupleRawNames: []string{"amount", "valid"}, TupleElems: []*abi.Type{&abiNumberTy, &abiBoolTy}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Amount", Type: abiNumberTy.GetType(), Tag: reflect.StructTag(`abi:"amount" json:"amount"`)}, {Name: "Valid", Type: abiBoolTy.GetType(), Tag: reflect.StructTag(`abi:"valid" json:"valid"`)}})}.GetType(), Tag: reflect.StructTag(`abi:"detail" json:"detail"`)}})}}},
-		},
-		{
-			Name:     "(string name, ((string instrument, number[] prices) base, (string instrument, number[] prices) quote)[] pair)[][]",
-			Input:    types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "pair", Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "base", Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "prices", Type: types.Array, Children: types.Elements{{Type: types.Number}}}}}, {Name: "quote", Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "prices", Type: types.Array, Children: types.Elements{{Type: types.Number}}}}}}}}}}}}}}}},
-			Expected: AbiElements{{Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"name", "pair"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"base", "quote"}, TupleElems: []*abi.Type{{T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}, {T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Base", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"base" json:"base"`)}, {Name: "Quote", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"quote" json:"quote"`)}})}}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Name", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"name" json:"name"`)}, {Name: "Pair", Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"base", "quote"}, TupleElems: []*abi.Type{{T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}, {T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Base", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"base" json:"base"`)}, {Name: "Quote", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"quote" json:"quote"`)}})}}.GetType(), Tag: reflect.StructTag(`abi:"pair" json:"pair"`)}})}}}}},
-		},
-	}
-
-	parser := NewEtherParser()
-	for _, tc := range testcases {
-		t.Run(tc.Name, func(t *testing.T) {
-			result, err := parser.Serialize(tc.Input)
-			assert.NoError(t, err)
-			assert.Equal(t, tc.Expected, result)
-		})
-	}
-}
-
-func TestAbiElements_Encode(t *testing.T) {
-	type Testcase struct {
-		Name     string
-		Input    types.Elements
-		Args     []any
+		Values   []any
 		Expected []byte
 	}
 
 	testcases := []Testcase{
 		{
-			Name:     "number",
-			Input:    types.Elements{{Type: types.Number}},
-			Args:     []any{int64(1)},
-			Expected: hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000001"),
+			Name:     "string,bool,address,bytes,int,uint",
+			Input:    types.Elements{{Type: types.String}, {Type: types.Bool}, {Type: types.Address}, {Type: types.Bytes}, {Type: types.Int}, {Type: types.Uint}},
+			Values:   []any{"string", true, common.HexToAddress("0xB035aD4B31759d909178d32da02266BD199c7e15"), hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000006737472696e670000000000000000000000000000000000000000000000000000"), int64(1), uint64(2)},
+			Expected: hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000001000000000000000000000000b035ad4b31759d909178d32da02266bd199c7e150000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000006737472696e670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000006737472696e670000000000000000000000000000000000000000000000000000"),
 		},
 		{
-			Name:     "string",
-			Input:    types.Elements{{Type: types.String}},
-			Args:     []any{"lorem ipsum"},
-			Expected: hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000b6c6f72656d20697073756d000000000000000000000000000000000000000000"),
-		},
-		{
-			Name:     "bool",
-			Input:    types.Elements{{Type: types.Bool}},
-			Args:     []any{true},
-			Expected: hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000001"),
+			Name:     "int128,uint256,bytes32",
+			Input:    types.Elements{{Type: types.Int, Size: 128}, {Type: types.Uint, Size: 256}, {Type: types.Bytes, Size: 32}},
+			Values:   []any{big.NewInt(1), big.NewInt(101), [32]byte(hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000001"))},
+			Expected: hexutil.MustDecode("0x000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000650000000000000000000000000000000000000000000000000000000000000001"),
 		},
 		{
 			Name:     "string[]",
 			Input:    types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.String}}}},
-			Args:     []any{[]string{"lorem ipsum"}},
-			Expected: hexutil.MustDecode("0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000b6c6f72656d20697073756d000000000000000000000000000000000000000000"),
+			Values:   []any{[]string{"hello", "world"}},
+			Expected: hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000568656c6c6f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005776f726c64000000000000000000000000000000000000000000000000000000"),
 		},
 		{
-			Name:     "int64[][]",
-			Input:    types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Number}}}}}},
-			Args:     []any{[][]int64{{1, 2}, {3, 4}}},
-			Expected: hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000004"),
+			Name:  "uint256[][]",
+			Input: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Uint, Size: 256}}}}}},
+			Values: []any{
+				[][]*big.Int{
+					{big.NewInt(1), big.NewInt(2), big.NewInt(3)},
+					{big.NewInt(4), big.NewInt(5), big.NewInt(1000)},
+				},
+			},
+			Expected: hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000003e8"),
 		},
 		{
-			Name:  "(string instrument, number price, bool valid)",
-			Input: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "price", Type: types.Number}, {Name: "valid", Type: types.Bool}}}},
-			Args: []any{struct {
-				Instrument string `abi:"instrument" json:"instrument"`
-				Price      int64  `abi:"price" json:"price"`
-				Valid      bool   `abi:"valid" json:"valid"`
-			}{Instrument: "BTC", Price: 1000000000000000000, Valid: true}},
-			Expected: hexutil.MustDecode("0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000de0b6b3a7640000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000034254430000000000000000000000000000000000000000000000000000000000"),
+			Name:  "(string name, int count, uint256 balance, bytes[32] signature, bool valid)",
+			Input: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "count", Type: types.Int}, {Name: "balance", Type: types.Uint, Size: 256}, {Name: "signature", Type: types.Bytes, Size: 32}, {Name: "valid", Type: types.Bool}}}},
+			Values: []any{struct {
+				Name      string
+				Count     int64
+				Balance   *big.Int
+				Signature [32]byte `abi:"signature"`
+				Valid     bool
+			}{
+				Name:      "welder",
+				Count:     10,
+				Balance:   big.NewInt(9999),
+				Signature: [32]byte(hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000001")),
+				Valid:     true,
+			}},
+			Expected: hexutil.MustDecode("0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000270f00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000677656c6465720000000000000000000000000000000000000000000000000000"),
 		},
 		{
-			Name:  "(string instrument, number price, bool valid)[]",
-			Input: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "price", Type: types.Number}, {Name: "valid", Type: types.Bool}}}}}},
-			Args: []any{[]struct {
-				Instrument string `abi:"instrument" json:"instrument"`
-				Price      int64  `abi:"price" json:"price"`
-				Valid      bool   `abi:"valid" json:"valid"`
-			}{{Instrument: "BTC", Price: 1000000000000000000, Valid: true}, {Instrument: "ETH", Price: 1000000000000000000, Valid: true}}},
-			Expected: hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000de0b6b3a764000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000003425443000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000de0b6b3a7640000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000034554480000000000000000000000000000000000000000000000000000000000"),
-		},
-		{
-			Name:  "(string name, ((string instrument, number[] prices) base, (string instrument, number[] prices) quote)[] pair)[][]",
-			Input: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "pair", Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "base", Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "prices", Type: types.Array, Children: types.Elements{{Type: types.Number}}}}}, {Name: "quote", Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "prices", Type: types.Array, Children: types.Elements{{Type: types.Number}}}}}}}}}}}}}}}},
-			Args: []any{[][]struct {
+			Name:  "(string name, ((string instrument, uint256[] prices) base, (string instrument, uint256[] prices) quote)[] pair)[][]",
+			Input: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "pair", Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "base", Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "prices", Type: types.Array, Children: types.Elements{{Type: types.Uint, Size: 256}}}}}, {Name: "quote", Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "prices", Type: types.Array, Children: types.Elements{{Type: types.Uint, Size: 256}}}}}}}}}}}}}}}},
+			Values: []any{[][]struct {
 				Name string `abi:"name" json:"name"`
 				Pair []struct {
 					Base struct {
-						Instrument string  `abi:"instrument" json:"instrument"`
-						Prices     []int64 `abi:"prices" json:"prices"`
+						Instrument string     `abi:"instrument" json:"instrument"`
+						Prices     []*big.Int `abi:"prices" json:"prices"`
 					} `abi:"base" json:"base"`
 					Quote struct {
-						Instrument string  `abi:"instrument" json:"instrument"`
-						Prices     []int64 `abi:"prices" json:"prices"`
+						Instrument string     `abi:"instrument" json:"instrument"`
+						Prices     []*big.Int `abi:"prices" json:"prices"`
 					} `abi:"quote" json:"quote"`
 				} `abi:"pair" json:"pair"`
 			}{
@@ -184,44 +91,52 @@ func TestAbiElements_Encode(t *testing.T) {
 						Name: "CryptoExchange1",
 						Pair: []struct {
 							Base struct {
-								Instrument string  `abi:"instrument" json:"instrument"`
-								Prices     []int64 `abi:"prices" json:"prices"`
+								Instrument string     `abi:"instrument" json:"instrument"`
+								Prices     []*big.Int `abi:"prices" json:"prices"`
 							} `abi:"base" json:"base"`
 							Quote struct {
-								Instrument string  `abi:"instrument" json:"instrument"`
-								Prices     []int64 `abi:"prices" json:"prices"`
+								Instrument string     `abi:"instrument" json:"instrument"`
+								Prices     []*big.Int `abi:"prices" json:"prices"`
 							} `abi:"quote" json:"quote"`
 						}{
 							{
 								Base: struct {
-									Instrument string  `abi:"instrument" json:"instrument"`
-									Prices     []int64 `abi:"prices" json:"prices"`
+									Instrument string     `abi:"instrument" json:"instrument"`
+									Prices     []*big.Int `abi:"prices" json:"prices"`
 								}{
 									Instrument: "BTC",
-									Prices:     []int64{68000, 68100, 68050},
+									Prices: []*big.Int{
+										big.NewInt(68000),
+										big.NewInt(68100),
+										big.NewInt(68050),
+									},
 								},
 								Quote: struct {
-									Instrument string  `abi:"instrument" json:"instrument"`
-									Prices     []int64 `abi:"prices" json:"prices"`
+									Instrument string     `abi:"instrument" json:"instrument"`
+									Prices     []*big.Int `abi:"prices" json:"prices"`
 								}{
 									Instrument: "USD",
-									Prices:     []int64{1, 1, 1},
+									Prices:     []*big.Int{big.NewInt(1), big.NewInt(1), big.NewInt(1)},
 								},
 							},
 							{
 								Base: struct {
-									Instrument string  `abi:"instrument" json:"instrument"`
-									Prices     []int64 `abi:"prices" json:"prices"`
+									Instrument string     `abi:"instrument" json:"instrument"`
+									Prices     []*big.Int `abi:"prices" json:"prices"`
 								}{
 									Instrument: "ETH",
-									Prices:     []int64{3500, 3510, 3505},
+									Prices:     []*big.Int{big.NewInt(3500), big.NewInt(3510), big.NewInt(3505)},
 								},
 								Quote: struct {
-									Instrument string  `abi:"instrument" json:"instrument"`
-									Prices     []int64 `abi:"prices" json:"prices"`
+									Instrument string     `abi:"instrument" json:"instrument"`
+									Prices     []*big.Int `abi:"prices" json:"prices"`
 								}{
 									Instrument: "USD",
-									Prices:     []int64{1, 1, 1},
+									Prices: []*big.Int{
+										big.NewInt(1),
+										big.NewInt(1),
+										big.NewInt(1),
+									},
 								},
 							},
 						},
@@ -230,28 +145,32 @@ func TestAbiElements_Encode(t *testing.T) {
 						Name: "CryptoExchange2",
 						Pair: []struct {
 							Base struct {
-								Instrument string  `abi:"instrument" json:"instrument"`
-								Prices     []int64 `abi:"prices" json:"prices"`
+								Instrument string     `abi:"instrument" json:"instrument"`
+								Prices     []*big.Int `abi:"prices" json:"prices"`
 							} `abi:"base" json:"base"`
 							Quote struct {
-								Instrument string  `abi:"instrument" json:"instrument"`
-								Prices     []int64 `abi:"prices" json:"prices"`
+								Instrument string     `abi:"instrument" json:"instrument"`
+								Prices     []*big.Int `abi:"prices" json:"prices"`
 							} `abi:"quote" json:"quote"`
 						}{
 							{
 								Base: struct {
-									Instrument string  `abi:"instrument" json:"instrument"`
-									Prices     []int64 `abi:"prices" json:"prices"`
+									Instrument string     `abi:"instrument" json:"instrument"`
+									Prices     []*big.Int `abi:"prices" json:"prices"`
 								}{
 									Instrument: "SOL",
-									Prices:     []int64{150, 152, 151},
+									Prices:     []*big.Int{big.NewInt(150), big.NewInt(152), big.NewInt(151)},
 								},
 								Quote: struct {
-									Instrument string  `abi:"instrument" json:"instrument"`
-									Prices     []int64 `abi:"prices" json:"prices"`
+									Instrument string     `abi:"instrument" json:"instrument"`
+									Prices     []*big.Int `abi:"prices" json:"prices"`
 								}{
 									Instrument: "USDT",
-									Prices:     []int64{1, 1, 1},
+									Prices: []*big.Int{
+										big.NewInt(1),
+										big.NewInt(1),
+										big.NewInt(1),
+									},
 								},
 							},
 						},
@@ -262,44 +181,44 @@ func TestAbiElements_Encode(t *testing.T) {
 						Name: "ForexBrokerA",
 						Pair: []struct {
 							Base struct {
-								Instrument string  `abi:"instrument" json:"instrument"`
-								Prices     []int64 `abi:"prices" json:"prices"`
+								Instrument string     `abi:"instrument" json:"instrument"`
+								Prices     []*big.Int `abi:"prices" json:"prices"`
 							} `abi:"base" json:"base"`
 							Quote struct {
-								Instrument string  `abi:"instrument" json:"instrument"`
-								Prices     []int64 `abi:"prices" json:"prices"`
+								Instrument string     `abi:"instrument" json:"instrument"`
+								Prices     []*big.Int `abi:"prices" json:"prices"`
 							} `abi:"quote" json:"quote"`
 						}{
 							{
 								Base: struct {
-									Instrument string  `abi:"instrument" json:"instrument"`
-									Prices     []int64 `abi:"prices" json:"prices"`
+									Instrument string     `abi:"instrument" json:"instrument"`
+									Prices     []*big.Int `abi:"prices" json:"prices"`
 								}{
 									Instrument: "EUR",
-									Prices:     []int64{10710, 10715, 10712},
+									Prices:     []*big.Int{big.NewInt(10710), big.NewInt(10715), big.NewInt(10712)},
 								},
 								Quote: struct {
-									Instrument string  `abi:"instrument" json:"instrument"`
-									Prices     []int64 `abi:"prices" json:"prices"`
+									Instrument string     `abi:"instrument" json:"instrument"`
+									Prices     []*big.Int `abi:"prices" json:"prices"`
 								}{
 									Instrument: "USD",
-									Prices:     []int64{1, 1, 1},
+									Prices:     []*big.Int{big.NewInt(1), big.NewInt(1), big.NewInt(1)},
 								},
 							},
 							{
 								Base: struct {
-									Instrument string  `abi:"instrument" json:"instrument"`
-									Prices     []int64 `abi:"prices" json:"prices"`
+									Instrument string     `abi:"instrument" json:"instrument"`
+									Prices     []*big.Int `abi:"prices" json:"prices"`
 								}{
 									Instrument: "GBP",
-									Prices:     []int64{12750, 12755, 12751},
+									Prices:     []*big.Int{big.NewInt(12750), big.NewInt(12755), big.NewInt(12751)},
 								},
 								Quote: struct {
-									Instrument string  `abi:"instrument" json:"instrument"`
-									Prices     []int64 `abi:"prices" json:"prices"`
+									Instrument string     `abi:"instrument" json:"instrument"`
+									Prices     []*big.Int `abi:"prices" json:"prices"`
 								}{
 									Instrument: "JPY",
-									Prices:     []int64{157, 157, 157},
+									Prices:     []*big.Int{big.NewInt(157), big.NewInt(157), big.NewInt(157)},
 								},
 							},
 						},
@@ -316,14 +235,21 @@ func TestAbiElements_Encode(t *testing.T) {
 			args, err := parser.Serialize(tc.Input)
 			assert.NoError(t, err)
 
-			actual, err := args.Encode(tc.Args...)
+			actual, err := args.Encode(tc.Values...)
+			fmt.Println(hexutil.Encode(actual))
 			assert.NoError(t, err)
 			assert.Equal(t, tc.Expected, actual)
 		})
 	}
 }
 
-func TestAbiParser_Deserialize(t *testing.T) {
+func TestEtherParser_Deserialize(t *testing.T) {
+	var (
+		abiStringTy = abi.Type{T: abi.StringTy}
+		abiNumberTy = abi.Type{T: abi.IntTy}
+		abiBoolTy   = abi.Type{T: abi.BoolTy}
+	)
+
 	type Testcase struct {
 		Name     string
 		Input    AbiElements
@@ -332,29 +258,14 @@ func TestAbiParser_Deserialize(t *testing.T) {
 
 	testcases := []Testcase{
 		{
-			Name:     "number",
-			Input:    AbiElements{{Type: crossTypes[types.Number]}},
-			Expected: types.Elements{{Type: types.Number}},
+			Name:     "addrses,bytes,bytes32",
+			Input:    AbiElements{{Type: abi.Type{T: abi.AddressTy}}, {Type: abi.Type{T: abi.BytesTy}}, {Type: abi.Type{T: abi.FixedBytesTy, Size: 32}}},
+			Expected: types.Elements{{Type: types.Address}, {Type: types.Bytes}, {Type: types.Bytes, Size: 32}},
 		},
 		{
-			Name:     "string",
-			Input:    AbiElements{{Type: crossTypes[types.String]}},
-			Expected: types.Elements{{Type: types.String}},
-		},
-		{
-			Name:     "bool",
-			Input:    AbiElements{{Type: crossTypes[types.Bool]}},
-			Expected: types.Elements{{Type: types.Bool}},
-		},
-		{
-			Name:     "number,string,bool",
-			Input:    AbiElements{{Type: crossTypes[types.Number]}, {Type: crossTypes[types.String]}, {Type: crossTypes[types.Bool]}},
-			Expected: types.Elements{{Type: types.Number}, {Type: types.String}, {Type: types.Bool}},
-		},
-		{
-			Name:     "string[]",
-			Input:    AbiElements{{Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.StringTy}}}},
-			Expected: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.String}}}},
+			Name:     "uint256[100]",
+			Input:    AbiElements{{Type: abi.Type{T: abi.ArrayTy, Size: 100, Elem: &abi.Type{T: abi.UintTy, Size: 256}}}},
+			Expected: types.Elements{{Type: types.Array, Size: 100, Children: types.Elements{{Type: types.Uint, Size: 256}}}},
 		},
 		{
 			Name:     "string[][]",
@@ -364,22 +275,22 @@ func TestAbiParser_Deserialize(t *testing.T) {
 		{
 			Name:     "(string name, number value, bool valid)",
 			Input:    AbiElements{{Type: abi.Type{T: abi.TupleTy, TupleRawNames: []string{"name", "value", "valid"}, TupleElems: []*abi.Type{{T: abi.StringTy}, {T: abi.IntTy}, {T: abi.BoolTy}}}}},
-			Expected: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "value", Type: types.Number}, {Name: "valid", Type: types.Bool}}}},
+			Expected: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "value", Type: types.Int}, {Name: "valid", Type: types.Bool}}}},
 		},
 		{
 			Name:     "(string name, number value, bool valid)[]",
 			Input:    AbiElements{{Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"name", "value", "valid"}, TupleElems: []*abi.Type{{T: abi.StringTy}, {T: abi.IntTy}, {T: abi.BoolTy}}}}}},
-			Expected: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "value", Type: types.Number}, {Name: "valid", Type: types.Bool}}}}}},
+			Expected: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "value", Type: types.Int}, {Name: "valid", Type: types.Bool}}}}}},
 		},
 		{
 			Name:     "(string name, (number amount, bool valid) detail)",
 			Input:    AbiElements{{Type: abi.Type{T: abi.TupleTy, TupleRawNames: []string{"name", "detail"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.TupleTy, TupleRawNames: []string{"amount", "valid"}, TupleElems: []*abi.Type{&abiNumberTy, &abiBoolTy}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Amount", Type: abiNumberTy.GetType(), Tag: reflect.StructTag(`abi:"amount" json:"amount"`)}, {Name: "Valid", Type: abiBoolTy.GetType(), Tag: reflect.StructTag(`abi:"valid" json:"valid"`)}})}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Name", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"name" json:"name"`)}, {Name: "Detail", Type: abi.Type{T: abi.TupleTy, TupleRawNames: []string{"amount", "valid"}, TupleElems: []*abi.Type{&abiNumberTy, &abiBoolTy}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Amount", Type: abiNumberTy.GetType(), Tag: reflect.StructTag(`abi:"amount" json:"amount"`)}, {Name: "Valid", Type: abiBoolTy.GetType(), Tag: reflect.StructTag(`abi:"valid" json:"valid"`)}})}.GetType(), Tag: reflect.StructTag(`abi:"detail" json:"detail"`)}})}}},
-			Expected: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "detail", Type: types.Object, Children: types.Elements{{Name: "amount", Type: types.Number}, {Name: "valid", Type: types.Bool}}}}}},
+			Expected: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "detail", Type: types.Object, Children: types.Elements{{Name: "amount", Type: types.Int}, {Name: "valid", Type: types.Bool}}}}}},
 		},
 		{
 			Name:     "(string name, ((string instrument, number[] prices) base, (string instrument, number[] prices) quote)[] pair)[][]",
 			Input:    AbiElements{{Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"name", "pair"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"base", "quote"}, TupleElems: []*abi.Type{{T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}, {T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Base", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"base" json:"base"`)}, {Name: "Quote", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"quote" json:"quote"`)}})}}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Name", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"name" json:"name"`)}, {Name: "Pair", Type: abi.Type{T: abi.SliceTy, Elem: &abi.Type{T: abi.TupleTy, TupleRawNames: []string{"base", "quote"}, TupleElems: []*abi.Type{{T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}, {T: abi.TupleTy, TupleRawNames: []string{"instrument", "prices"}, TupleElems: []*abi.Type{&abiStringTy, {T: abi.SliceTy, Elem: &abiNumberTy}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}})}}, TupleType: reflect.StructOf([]reflect.StructField{{Name: "Base", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"base" json:"base"`)}, {Name: "Quote", Type: reflect.StructOf([]reflect.StructField{{Name: "Instrument", Type: abiStringTy.GetType(), Tag: reflect.StructTag(`abi:"instrument" json:"instrument"`)}, {Name: "Prices", Type: abi.Type{T: abi.SliceTy, Elem: &abiNumberTy}.GetType(), Tag: reflect.StructTag(`abi:"prices" json:"prices"`)}}), Tag: reflect.StructTag(`abi:"quote" json:"quote"`)}})}}.GetType(), Tag: reflect.StructTag(`abi:"pair" json:"pair"`)}})}}}}},
-			Expected: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "pair", Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "base", Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "prices", Type: types.Array, Children: types.Elements{{Type: types.Number}}}}}, {Name: "quote", Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "prices", Type: types.Array, Children: types.Elements{{Type: types.Number}}}}}}}}}}}}}}}},
+			Expected: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "name", Type: types.String}, {Name: "pair", Type: types.Array, Children: types.Elements{{Type: types.Object, Children: types.Elements{{Name: "base", Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "prices", Type: types.Array, Children: types.Elements{{Type: types.Int}}}}}, {Name: "quote", Type: types.Object, Children: types.Elements{{Name: "instrument", Type: types.String}, {Name: "prices", Type: types.Array, Children: types.Elements{{Type: types.Int}}}}}}}}}}}}}}}},
 		},
 	}
 

@@ -63,7 +63,7 @@ func TestUnmarshalToElements(t *testing.T) {
 			]`,
 			Expected: types.Elements{
 				{
-					Type: types.Number,
+					Type: types.Int,
 				},
 				{
 					Type: types.Array,
@@ -82,7 +82,7 @@ func TestUnmarshalToElements(t *testing.T) {
 						},
 						{
 							Name: "field-number",
-							Type: types.Number,
+							Type: types.Int,
 						},
 						{
 							Name: "field-boolean",

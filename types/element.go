@@ -8,7 +8,7 @@ type Elements []Element
 type Element struct {
 	Name     string      `json:"name"`
 	Type     ElementType `json:"type"`
-	Nullable bool        `json:"nullable"`
+	Size     int         `json:"size"`
 	Children Elements    `json:"children"`
 }
 

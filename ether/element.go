@@ -8,281 +8,295 @@ import (
 	"github.com/ideatru/welder/types"
 )
 
-// Ensure EtherParser implements the Parser interface for AbiElements.
-var _ types.Parser[AbiElements] = &EtherParser[AbiElements]{}
+var _ types.Parser[AbiElements] = NewEtherParser()
 
-// AbiElements is a list of abi.Argument, typically used for encoding/decoding Ethereum ABI data.
 type AbiElements []abi.Argument
 
-// Encode encodes the values into a byte slice
-func (e AbiElements) Encode(values ...any) ([]byte, error) {
-	args := abi.Arguments(e)
-	return args.Pack(values...)
-}
+func (a AbiElements) Encode(values ...any) ([]byte, error) { return abi.Arguments(a).Pack(values...) }
 
-// EtherParser is a generic converter that facilitates translation between `types.Elements`
-// and a target ABI type `T` (which must be `AbiElements`).
 type EtherParser[T AbiElements] struct{}
 
-// NewEtherParser creates and returns a new instance of EtherParser.
-func NewEtherParser[T AbiElements]() *EtherParser[T] {
-	return &EtherParser[T]{}
-}
+func NewEtherParser[T AbiElements]() *EtherParser[T] { return &EtherParser[T]{} }
 
-// Serialize converts a structured `types.Elements` representation into the target ABI type `T`.
 func (e *EtherParser[T]) Serialize(elements types.Elements) (T, error) {
-	return e.encode(elements)
+	return e.serialize(elements)
 }
 
-// encode internally processes and converts `types.Elements` into the `AbiElements` format.
-func (e *EtherParser[T]) encode(elements types.Elements) (T, error) {
-	args := make(T, len(elements))
+func (e *EtherParser[T]) serialize(elements types.Elements) (T, error) {
+	var (
+		args = make(T, len(elements))
+		err  error
+	)
 
-	for i, el := range elements {
-		args[i].Name = el.Name
-		switch el.Type {
-		case types.String:
-			args[i].Type = crossTypes[types.String]
-		case types.Number:
-			args[i].Type = crossTypes[types.Number]
-		case types.Bool:
-			args[i].Type = crossTypes[types.Bool]
-		case types.Array:
-			ty, err := e.encodeArray(el)
-			if err != nil {
-				return nil, err
-			}
-			args[i].Type = ty
-		case types.Object:
-			ty, err := e.encodeObject(el)
-			if err != nil {
-				return nil, err
-			}
-			args[i].Type = ty
-		default:
-			return nil, fmt.Errorf("parser does not suuprot %q", el.Type)
+	for i, elem := range elements {
+		args[i].Type, err = e.encode(elem)
+		if err != nil {
+			return nil, err
 		}
+
+		args[i].Name = elem.Name
 	}
 
 	return args, nil
 }
 
-// encodeArray converts a `types.Element` representing an array into an `abi.Type` for array.
-func (e *EtherParser[T]) encodeArray(el types.Element) (abi.Type, error) {
-	if len(el.Children) != 1 {
-		return emptyTy, fmt.Errorf("array must have one child")
+func (e *EtherParser[T]) encode(elem types.Element) (abi.Type, error) {
+	var (
+		ty  abi.Type
+		err error
+	)
+
+	switch elem.Type {
+	case types.String:
+		ty, err = e.encodeString(elem)
+	case types.Bytes:
+		ty, err = e.encodeBytes(elem)
+	case types.Address:
+		ty, err = e.encodeAddress(elem)
+	case types.Int, types.Uint:
+		ty, err = e.encodeNumber(elem)
+	case types.Bool:
+		ty, err = e.encodeBool(elem)
+	case types.Array:
+		ty, err = e.encodeArray(elem)
+	case types.Object:
+		ty, err = e.encodeObject(elem)
+	default:
+		return emptyTy, fmt.Errorf("parser does not support %q", elem.Type)
 	}
 
-	ty := crossTypes[types.Array]
-	switch el.Children[0].Type {
-	case types.String:
-		childTy := crossTypes[el.Children[0].Type]
-		ty.Elem = &childTy
-	case types.Number:
-		childTy := crossTypes[el.Children[0].Type]
-		ty.Elem = &childTy
-	case types.Bool:
-		childTy := crossTypes[el.Children[0].Type]
-		ty.Elem = &childTy
-	case types.Array:
-		childTy, err := e.encodeArray(el.Children[0])
-		if err != nil {
-			return emptyTy, err
-		}
-		ty.Elem = &childTy
-	case types.Object:
-		childTy, err := e.encodeObject(el.Children[0])
-		if err != nil {
-			return emptyTy, err
-		}
-		ty.Elem = &childTy
-	default:
-		return emptyTy, fmt.Errorf("unsupported type: %q", el.Children[0].Type)
+	if err != nil {
+		return emptyTy, err
 	}
 
 	return ty, nil
 }
 
-// encodeObject converts a `types.Element` representing an object into an `abi.Type` for a tuple.
-func (e *EtherParser[T]) encodeObject(el types.Element) (abi.Type, error) {
-	if len(el.Children) == 0 {
+func (e *EtherParser[T]) encodeString(elem types.Element) (abi.Type, error) {
+	if elem.Type != types.String {
+		return emptyTy, fmt.Errorf("`encodeString` does not support type %q", elem.Type)
+	}
+
+	return abi.Type{T: abi.StringTy}, nil
+}
+
+func (e *EtherParser[T]) encodeBytes(elem types.Element) (abi.Type, error) {
+	if elem.Type != types.Bytes {
+		return emptyTy, fmt.Errorf("`encodeBytes` does not support type %q", elem.Type)
+	}
+
+	if elem.Size <= 0 {
+		return abi.Type{T: abi.BytesTy}, nil
+	}
+
+	return abi.Type{T: abi.FixedBytesTy, Size: elem.Size}, nil
+}
+
+func (e *EtherParser[T]) encodeAddress(elem types.Element) (abi.Type, error) {
+	if elem.Type != types.Address {
+		return emptyTy, fmt.Errorf("`encodeAddress` does not support type %q", elem.Type)
+	}
+
+	return abi.Type{T: abi.AddressTy}, nil
+}
+
+func (e *EtherParser[T]) encodeNumber(elem types.Element) (abi.Type, error) {
+	ty := abi.Type{}
+	switch elem.Type {
+	case types.Int:
+		ty.T = abi.IntTy
+	case types.Uint:
+		ty.T = abi.UintTy
+	default:
+		return emptyTy, fmt.Errorf("`encodeNumber` does not support type %q", elem.Type)
+	}
+
+	if elem.Size <= 0 {
+		ty.Size = 64
+		return ty, nil
+	}
+
+	ty.Size = elem.Size
+	return ty, nil
+}
+
+func (e *EtherParser[T]) encodeBool(elem types.Element) (abi.Type, error) {
+	if elem.Type != types.Bool {
+		return emptyTy, fmt.Errorf("`encodeBool` does not support type %q", elem.Type)
+	}
+
+	return abi.Type{T: abi.BoolTy}, nil
+}
+
+func (e *EtherParser[T]) encodeArray(elem types.Element) (abi.Type, error) {
+	if len(elem.Children) != 1 {
+		return emptyTy, fmt.Errorf("array must have one child")
+	}
+
+	ty := abi.Type{T: abi.SliceTy}
+	if elem.Size > 0 {
+		ty.T = abi.ArrayTy
+		ty.Size = elem.Size
+	}
+
+	childTy, err := e.encode(elem.Children[0])
+	if err != nil {
+		return childTy, err
+	}
+
+	ty.Elem = &childTy
+	return ty, nil
+}
+
+func (e *EtherParser[T]) encodeObject(elem types.Element) (abi.Type, error) {
+	if len(elem.Children) == 0 {
 		return emptyTy, fmt.Errorf("object must have at least one child")
 	}
 
-	ty := crossTypes[types.Object]
+	ty := abi.Type{T: abi.TupleTy}
 	fields := make([]reflect.StructField, 0)
-	for _, child := range el.Children {
-		ty.TupleRawNames = append(ty.TupleRawNames, child.Name)
 
-		switch child.Type {
-		case types.String:
-			childTy := crossTypes[types.String]
-			ty.TupleElems = append(ty.TupleElems, &childTy)
-			fields = append(fields, reflect.StructField{
-				Name: abi.ToCamelCase(child.Name),
-				Type: childTy.GetType(),
-				Tag:  reflect.StructTag(`abi:"` + child.Name + `" json:"` + child.Name + `"`),
-			})
-		case types.Number:
-			childTy := crossTypes[types.Number]
-			ty.TupleElems = append(ty.TupleElems, &childTy)
-			fields = append(fields, reflect.StructField{
-				Name: abi.ToCamelCase(child.Name),
-				Type: childTy.GetType(),
-				Tag:  reflect.StructTag(`abi:"` + child.Name + `" json:"` + child.Name + `"`),
-			})
-		case types.Bool:
-			childTy := crossTypes[types.Bool]
-			ty.TupleElems = append(ty.TupleElems, &childTy)
-			fields = append(fields, reflect.StructField{
-				Name: abi.ToCamelCase(child.Name),
-				Type: childTy.GetType(),
-				Tag:  reflect.StructTag(`abi:"` + child.Name + `" json:"` + child.Name + `"`),
-			})
-		case types.Array:
-			childTy, err := e.encodeArray(child)
-			if err != nil {
-				return emptyTy, err
-			}
-
-			ty.TupleElems = append(ty.TupleElems, &childTy)
-			fields = append(fields, reflect.StructField{
-				Name: abi.ToCamelCase(child.Name),
-				Type: childTy.GetType(),
-				Tag:  reflect.StructTag(`abi:"` + child.Name + `" json:"` + child.Name + `"`),
-			})
-		case types.Object:
-			childTy, err := e.encodeObject(child)
-			if err != nil {
-				return emptyTy, err
-			}
-			ty.TupleElems = append(ty.TupleElems, &childTy)
-			fields = append(fields, reflect.StructField{
-				Name: abi.ToCamelCase(child.Name),
-				Type: childTy.GetType(),
-				Tag:  reflect.StructTag(`abi:"` + child.Name + `" json:"` + child.Name + `"`),
-			})
-		default:
-			return emptyTy, fmt.Errorf("unsupported type: %q", child.Type)
+	for _, childElem := range elem.Children {
+		tupleElem, err := e.encode(childElem)
+		if err != nil {
+			return tupleElem, err
 		}
+
+		ty.TupleRawNames = append(ty.TupleRawNames, childElem.Name)
+		ty.TupleElems = append(ty.TupleElems, &tupleElem)
+		fields = append(fields, reflect.StructField{
+			Name: abi.ToCamelCase(childElem.Name),
+			Type: tupleElem.GetType(),
+			Tag:  reflect.StructTag(`abi:"` + childElem.Name + `" json:"` + childElem.Name + `"`),
+		})
 	}
 
 	ty.TupleType = reflect.StructOf(fields)
 	return ty, nil
 }
 
-// Deserialize converts data of type `T` (AbiElements) into a structured `types.Elements` representation.
-func (e *EtherParser[T]) Deserialize(data T) (types.Elements, error) {
-	return e.decode(data)
+func (e *EtherParser[T]) Deserialize(args T) (types.Elements, error) {
+	return e.deserialize(args)
 }
 
-// decode internally processes and converts `AbiElements` into the `types.Elements` format.
-func (e *EtherParser[T]) decode(data T) (types.Elements, error) {
-	elements := make(types.Elements, len(data))
+func (e *EtherParser[T]) deserialize(args T) (types.Elements, error) {
+	elements := make(types.Elements, len(args))
 
-	for i, arg := range data {
-		elements[i].Name = arg.Name
-		switch arg.Type.T {
-		case abi.StringTy:
-			elements[i].Type = types.String
-		case abi.IntTy:
-			elements[i].Type = types.Number
-		case abi.BoolTy:
-			elements[i].Type = types.Bool
-		case abi.SliceTy:
-			el, err := e.decodeArray(&arg.Type)
-			if err != nil {
-				return nil, err
-			}
-			elements[i].Type = el.Type
-			elements[i].Children = el.Children
-		case abi.TupleTy:
-			el, err := e.decodeObject(&arg.Type)
-			if err != nil {
-				return nil, err
-			}
-			elements[i].Type = el.Type
-			elements[i].Children = el.Children
-		default:
-			return nil, fmt.Errorf("elements does not support type %q", arg.Type.T)
+	for i, arg := range args {
+		elem, err := e.decode(arg.Type)
+		if err != nil {
+			return nil, err
 		}
+
+		elem.Name = arg.Name
+		elements[i] = *elem
 	}
 
 	return elements, nil
 }
 
-// decodeArray recursively decodes an `abi.Type` representing an array into a `types.Element`.
-func (e *EtherParser[T]) decodeArray(arg *abi.Type) (types.Element, error) {
-	if arg.Elem == nil {
-		return types.Element{}, fmt.Errorf("abi argument must have `Elem`")
-	}
-
-	el := types.Element{Type: types.Array, Children: make(types.Elements, 1)}
-	switch arg.Elem.T {
+func (e *EtherParser[T]) decode(ty abi.Type) (*types.Element, error) {
+	switch ty.T {
 	case abi.StringTy:
-		el.Children[0] = types.Element{Type: types.String}
-	case abi.IntTy:
-		el.Children[0] = types.Element{Type: types.Number} // Fixed: was types.String
+		return e.decodeString(ty)
+	case abi.BytesTy, abi.FixedBytesTy:
+		return e.decodeBytes(ty)
+	case abi.AddressTy:
+		return e.decodeAddress(ty)
+	case abi.IntTy, abi.UintTy:
+		return e.decodeNumber(ty)
 	case abi.BoolTy:
-		el.Children[0] = types.Element{Type: types.Bool} // Fixed: was types.String
-	case abi.SliceTy:
-		childEl, err := e.decodeArray(arg.Elem)
-		if err != nil {
-			return types.Element{}, err
-		}
-		el.Children[0] = childEl
+		return e.decodeBool(ty)
+	case abi.SliceTy, abi.ArrayTy:
+		return e.decodeArray(ty)
 	case abi.TupleTy:
-		childEl, err := e.decodeObject(arg.Elem)
-		if err != nil {
-			return types.Element{}, err
-		}
-		el.Children[0] = childEl
-	default:
-		return types.Element{}, fmt.Errorf("elements does not support type %q", arg.Elem.T) // Fixed: was arg.T
+		return e.decodeObject(ty)
 	}
 
-	return el, nil
+	return nil, fmt.Errorf("elements does not support type %q", ty.T)
 }
 
-// decodeObject recursively decodes an `abi.Type` representing a tuple (object) into a `types.Element`.
-func (e *EtherParser[T]) decodeObject(arg *abi.Type) (types.Element, error) {
-	if len(arg.TupleElems) != len(arg.TupleRawNames) {
-		return types.Element{}, fmt.Errorf("abi argument must have `TupleElems` and `TupleRawNames`")
+func (e *EtherParser[T]) decodeString(ty abi.Type) (*types.Element, error) {
+	if ty.T != abi.StringTy {
+		return nil, fmt.Errorf("`decodeString` does not support type %q", ty.T)
 	}
 
-	el := types.Element{Type: types.Object}
-	for i, tupleEl := range arg.TupleElems {
-		childEl := types.Element{
-			Name: arg.TupleRawNames[i],
-		}
+	return &types.Element{Type: types.String}, nil
+}
 
-		switch tupleEl.T {
-		case abi.StringTy:
-			childEl.Type = types.String
-		case abi.IntTy:
-			childEl.Type = types.Number
-		case abi.BoolTy:
-			childEl.Type = types.Bool
-		case abi.SliceTy:
-			tmpEl, err := e.decodeArray(tupleEl)
-			if err != nil {
-				return types.Element{}, err
-			}
-			childEl.Type = tmpEl.Type
-			childEl.Children = tmpEl.Children // Fixed: maintain consistency with other decode methods
-		case abi.TupleTy:
-			tmpEl, err := e.decodeObject(tupleEl)
-			if err != nil {
-				return types.Element{}, err
-			}
-			childEl.Type = tmpEl.Type
-			childEl.Children = tmpEl.Children
-		default:
-			return types.Element{}, fmt.Errorf("elements does not support type %q", tupleEl.T)
-		}
-
-		el.Children = append(el.Children, childEl)
+func (e *EtherParser[T]) decodeBytes(ty abi.Type) (*types.Element, error) {
+	if ty.T != abi.FixedBytesTy && ty.T != abi.BytesTy {
+		return nil, fmt.Errorf("`decodeBytes` does not support type %q", ty.T)
 	}
 
-	return el, nil
+	return &types.Element{Type: types.Bytes, Size: ty.Size}, nil
+}
+
+func (e *EtherParser[T]) decodeAddress(ty abi.Type) (*types.Element, error) {
+	if ty.T != abi.AddressTy {
+		return nil, fmt.Errorf("`decodeAddress` does not support type %q", ty.T)
+	}
+
+	return &types.Element{Type: types.Address}, nil
+}
+
+func (e *EtherParser[T]) decodeNumber(ty abi.Type) (*types.Element, error) {
+	switch ty.T {
+	case abi.IntTy:
+		return &types.Element{Type: types.Int, Size: ty.Size}, nil
+	case abi.UintTy:
+		return &types.Element{Type: types.Uint, Size: ty.Size}, nil
+	}
+
+	return nil, fmt.Errorf("`decodeNumber` does not support type %q", ty.T)
+}
+
+func (e *EtherParser[T]) decodeBool(ty abi.Type) (*types.Element, error) {
+	if ty.T != abi.BoolTy {
+		return nil, fmt.Errorf("`decodeBool` does not support type %q", ty.T)
+	}
+
+	return &types.Element{Type: types.Bool}, nil
+}
+
+func (e *EtherParser[T]) decodeArray(ty abi.Type) (*types.Element, error) {
+	if ty.T != abi.SliceTy && ty.T != abi.ArrayTy {
+		return nil, fmt.Errorf("`decodeArray` does not support type %q", ty.T)
+	}
+
+	if ty.Elem == nil {
+		return nil, fmt.Errorf("`decodeArray` does not support `*abi.Type.Elem == nil`")
+	}
+
+	childEl, err := e.decode(*ty.Elem)
+	if err != nil {
+		return nil, err
+	}
+
+	elem := types.Element{Type: types.Array, Children: make(types.Elements, 1)}
+	if ty.T == abi.ArrayTy {
+		elem.Size = ty.Size
+	}
+
+	elem.Children[0] = *childEl
+	return &elem, nil
+}
+
+func (e *EtherParser[T]) decodeObject(ty abi.Type) (*types.Element, error) {
+	if len(ty.TupleElems) != len(ty.TupleRawNames) {
+		return nil, fmt.Errorf("`decodeObject` does not support invalid abi type")
+	}
+
+	elem := types.Element{Type: types.Object}
+	for i, childTy := range ty.TupleElems {
+		childElem, err := e.decode(*childTy)
+		if err != nil {
+			return nil, err
+		}
+
+		childElem.Name = ty.TupleRawNames[i]
+		elem.Children = append(elem.Children, *childElem)
+	}
+
+	return &elem, nil
 }
