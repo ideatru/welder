@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ideatru/welder/internal/utils"
 	"github.com/ideatru/welder/types"
 )
 
@@ -165,9 +166,9 @@ func (e *EtherParser[T]) encodeObject(elem types.Element) (abi.Type, error) {
 		ty.TupleRawNames = append(ty.TupleRawNames, childElem.Name)
 		ty.TupleElems = append(ty.TupleElems, &tupleElem)
 		fields = append(fields, reflect.StructField{
-			Name: abi.ToCamelCase(childElem.Name),
+			Name: utils.ToCamelCase(childElem.Name),
 			Type: tupleElem.GetType(),
-			Tag:  reflect.StructTag(`abi:"` + childElem.Name + `" json:"` + childElem.Name + `"`),
+			Tag:  EtherStructTag(childElem.Name),
 		})
 	}
 

@@ -8,6 +8,8 @@ const (
 	Int = ElementType("int")
 	// Uint represents a unsigned-number type.
 	Uint = ElementType("uint")
+	// Float represents a float type.
+	Float = ElementType("float")
 	// String represents a string type.
 	String = ElementType("string")
 	// Bytes represents a bytes type.
