@@ -1,5 +1,7 @@
 # Welder
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/ideatru/welder.svg)](https://pkg.go.dev/github.com/ideatru/welder)
+
 <p align="center">
   <img src="./docs/logo.png" width="500" alt="Welder">
 </p>
