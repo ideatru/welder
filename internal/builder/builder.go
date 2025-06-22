@@ -10,22 +10,38 @@ import (
 )
 
 type (
-	//
+	// ReflectFn is a function type that converts a types.Element to a reflect.Type
+	// Used for custom type mapping in the builder
 	ReflectFn func(types.Element) (reflect.Type, error)
-	//
+
+	// StructTagFn is a function type that generates a reflect.StructTag from a field name
+	// Used to customize how struct field tags are generated
 	StructTagFn func(string) reflect.StructTag
-	//
+
+	// Option contains configuration options for the Builder
+	// Allows customization of type reflection and struct tag generation
 	Option struct {
-		ReflectReplacers  map[types.ElementType]ReflectFn
+		// ReflectReplacers maps element types to custom reflection functions
+		ReflectReplacers map[types.ElementType]ReflectFn
+
+		// StructTagReplacer is a function that generates struct tags for object fields
 		StructTagReplacer StructTagFn
 	}
 )
 
+// Builder is responsible for creating Go types based on element definitions
+// Uses reflection to dynamically build types that match the specified elements
 type Builder struct {
-	ReflectReplacers  map[types.ElementType]ReflectFn
+	// ReflectReplacers maps element types to custom reflection functions
+	ReflectReplacers map[types.ElementType]ReflectFn
+
+	// StructTagReplacer is a function that generates struct tags for object fields
 	StructTagReplacer StructTagFn
 }
 
+// New creates a new Builder with the provided options
+// If no options are provided, default options are used
+// Returns a pointer to the configured Builder
 func New(opts ...Option) *Builder {
 	var opt Option
 	if len(opts) > 0 {
@@ -48,6 +64,22 @@ func New(opts ...Option) *Builder {
 	return builder
 }
 
+func (b *Builder) Builds(elements types.Elements) ([]any, error) {
+	values := make([]any, 0, len(elements))
+	for _, elem := range elements {
+		value, err := b.Build(elem)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	return values, nil
+}
+
+// Build constructs a new instance of the type defined by the provided element
+// Uses reflection to create the appropriate Go type and initializes it
+// Returns the initialized value or an error if type building fails
+// Recovers from panics that might occur during reflection operations
 func (b *Builder) Build(elem types.Element) (value any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -62,10 +94,13 @@ func (b *Builder) Build(elem types.Element) (value any, err error) {
 		return nil, err
 	}
 
-	value = reflect.ValueOf(ty).Interface()
+	value = reflect.New(ty).Interface()
 	return
 }
 
+// buildType creates a reflect.Type based on the provided element
+// Dispatches to the appropriate type builder based on the element's type
+// Returns the reflect.Type or an error if type building fails
 func (b *Builder) buildType(elem types.Element) (reflect.Type, error) {
 	switch elem.Type {
 	case types.String:
@@ -91,10 +126,15 @@ func (b *Builder) buildType(elem types.Element) (reflect.Type, error) {
 	return nil, fmt.Errorf("`Builder does not support type %q", elem.Type)
 }
 
+// buildString creates a reflect.Type for a string element
+// Returns the type for Go's string
 func (b *Builder) buildString(elem types.Element) (reflect.Type, error) {
 	return reflect.TypeOf(""), nil
 }
 
+// buildUint creates a reflect.Type for an unsigned integer element
+// Selects the appropriate uint type based on the element's size
+// Returns a *big.Int type for sizes that don't match standard Go uint types
 func (b *Builder) buildUint(elem types.Element) (reflect.Type, error) {
 	switch elem.Size {
 	case 8:
@@ -108,9 +148,11 @@ func (b *Builder) buildUint(elem types.Element) (reflect.Type, error) {
 	default:
 		return reflect.TypeOf(big.NewInt(0)), nil
 	}
-
 }
 
+// buildInt creates a reflect.Type for a signed integer element
+// Selects the appropriate int type based on the element's size
+// Returns a *big.Int type for sizes that don't match standard Go int types
 func (b *Builder) buildInt(elem types.Element) (reflect.Type, error) {
 	switch elem.Size {
 	case 8:
@@ -126,6 +168,9 @@ func (b *Builder) buildInt(elem types.Element) (reflect.Type, error) {
 	}
 }
 
+// buildFloat creates a reflect.Type for a floating-point element
+// Selects float32 or float64 based on the element's size
+// Returns an error for sizes that don't match standard Go float types
 func (b *Builder) buildFloat(elem types.Element) (reflect.Type, error) {
 	switch elem.Size {
 	case 32:
@@ -137,18 +182,28 @@ func (b *Builder) buildFloat(elem types.Element) (reflect.Type, error) {
 	}
 }
 
+// buildBool creates a reflect.Type for a boolean element
+// Returns the type for Go's bool
 func (b *Builder) buildBool(elem types.Element) (reflect.Type, error) {
 	return reflect.TypeOf(false), nil
 }
 
+// buildBytes creates a reflect.Type for a bytes element
+// Returns the type for Go's []byte (byte slice)
 func (b *Builder) buildBytes(elem types.Element) (reflect.Type, error) {
 	return reflect.TypeOf([]byte{}), nil
 }
 
+// buildAddress creates a reflect.Type for an address element
+// Returns an error as the default implementation doesn't support address types
+// Custom implementations should be provided through ReflectReplacers
 func (b *Builder) buildAddress(elem types.Element) (reflect.Type, error) {
 	return nil, fmt.Errorf("`Builder` does not support type %q", types.Address)
 }
 
+// buildArray creates a reflect.Type for an array element
+// Returns a slice type of the child element's type
+// Returns an error if the array doesn't have exactly one child element
 func (b *Builder) buildArray(elem types.Element) (reflect.Type, error) {
 	if len(elem.Children) != 1 {
 		return nil, fmt.Errorf("array must have one child")
@@ -162,6 +217,9 @@ func (b *Builder) buildArray(elem types.Element) (reflect.Type, error) {
 	return reflect.SliceOf(ty), nil
 }
 
+// buildObject creates a reflect.Type for an object element
+// Constructs a struct type with fields matching the object's children
+// Returns an error if the object has no children
 func (b *Builder) buildObject(elem types.Element) (reflect.Type, error) {
 	if len(elem.Children) == 0 {
 		return nil, fmt.Errorf("object must have at least one child")
@@ -186,6 +244,9 @@ func (b *Builder) buildObject(elem types.Element) (reflect.Type, error) {
 	return reflect.StructOf(fields), nil
 }
 
+// unwrapReplacer applies a custom type builder if available for the element type
+// Falls back to the default builder if no custom builder is registered
+// Returns the resulting reflect.Type or an error if building fails
 func unwrapReplacer(elem types.Element, defaultFn ReflectFn, replacerFns map[types.ElementType]ReflectFn) (reflect.Type, error) {
 	if fn, ok := replacerFns[elem.Type]; ok {
 		return fn(elem)
