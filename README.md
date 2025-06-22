@@ -117,7 +117,7 @@ Transform your schema into an Arguments object that understands Ethereum ABI rul
 args, err := welder.Serialize(schema)
 ```
 
-### 3. Data Cleansing and Welding
+### 3. Data Cleansing and Welding (👷 In Development)
 
 Sanitize, validate, and transform your JSON data to match the schema structure:
 
@@ -369,14 +369,8 @@ if err != nil {
     panic(err)
 }
 
-// Clean and validate the JSON payload
-cleanedPayload, err := welder.Cleanse(schema, payload)
-if err != nil {
-    panic(err)
-}
-
-// Weld the cleaned payload to the schema structure
-params, err := welder.Weld(schema, cleanedPayload)
+// Weld the payload to the schema structure
+params, err := welder.Weld(schema, payload)
 if err != nil {
     panic(err)
 }
